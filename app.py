@@ -1,45 +1,49 @@
+
 import gradio as gr
-from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
 from langchain.chains import RetrievalQA
-from langchain.llms import HuggingFacePipeline
+from langchain.document_loaders import PyPDFLoader
+from langchain.vectorstores import FAISS
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from transformers import pipeline
+from langchain_huggingface import HuggingFacePipeline, HuggingFaceEmbeddings
 
-# ----------------- Core Functions ----------------- #
+# ------------------------ Setup Functions ------------------------
 
-def load_pdf(path):
-    loader = PyPDFLoader(path)
-    return loader.load()
+def load_pdf(file_path):
+    loader = PyPDFLoader(file_path)
+    raw_docs = loader.load()
+    splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=50)
+    return splitter.split_documents(raw_docs)
 
-def create_vector_store(docs):
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return FAISS.from_documents(docs, embeddings)
+def build_vectorstore(docs):
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return FAISS.from_documents(docs, embedding_model)
 
 def load_llm():
-    gen_pipeline = pipeline("text-generation", model="HuggingFaceH4/zephyr-7b-beta", max_new_tokens=256)
-    return HuggingFacePipeline(pipeline=gen_pipeline)
+    pipe = pipeline("text2text-generation", model="google/flan-t5-base", max_new_tokens=256)
+    return HuggingFacePipeline(pipeline=pipe)
 
-def create_qa_chain(vectorstore, llm):
-    return RetrievalQA.from_chain_type(llm=llm, retriever=vectorstore.as_retriever())
+def setup_qa_chain(pdf_path):
+    docs = load_pdf(pdf_path)
+    db = build_vectorstore(docs)
+    llm = load_llm()
+    return RetrievalQA.from_chain_type(llm=llm, retriever=db.as_retriever())
 
-# ----------------- Setup ----------------- #
+# ------------------------ Initialize Once ------------------------
 
-pdf_path = "sample.pdf"  # Replace with your PDF
-documents = load_pdf(pdf_path)
-vectorstore = create_vector_store(documents)
-llm = load_llm()
-qa_chain = create_qa_chain(vectorstore, llm)
+qa_chain = setup_qa_chain("sample_doc.pdf")  # 🔁 Replace with your PDF path
 
-# ----------------- Chat Function ----------------- #
+# ------------------------ Chatbot Logic ------------------------
 
-def chatbot(user_input, history=[]):
-    answer = qa_chain.run(user_input)
-    history.append((user_input, answer))
-    return history, history
+def chatbot(question, chat_history):
+    result = qa_chain.invoke({"query": question})
+    return result["result"]  # ✅ Gradio expects a plain string
 
-# ----------------- Gradio UI ----------------- #
+# ------------------------ Launch Gradio ------------------------
 
-chat_ui = gr.ChatInterface(fn=chatbot, chatbot=True, title="PDF Chatbot - Powered by Hugging Face")
-if __name__ == "__main__":
-    chat_ui.launch()
+chat_ui = gr.ChatInterface(
+    fn=chatbot,
+    title="📄 PDF ChatBot (Flan-T5)",
+    theme="default"
+)
+chat_ui.launch()
