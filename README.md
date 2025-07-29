@@ -6,6 +6,12 @@ This is a simple PDF-based QA chatbot built with:
 - 🗂️ FAISS for vector storage
 - 💬 Gradio for chat UI
 
+| Model            | Speed  | Size    | GPU Needed     |
+| ---------------- | ------ | ------- | -------------- |
+| `flan-t5-base`   | Fast   | \~250MB | ❌ Not required |
+| `flan-t5-large`  | Medium | \~800MB | ⚠️ Maybe       |
+| `zephyr-7b-beta` | Slow   | \~13GB  | ✅ Required     |
+
 ## 📦 Setup
 
 ```bash
